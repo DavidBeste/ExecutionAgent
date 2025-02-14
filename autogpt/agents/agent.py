@@ -28,7 +28,74 @@ from autogpt.workspace import Workspace
 
 from .base import AgentThoughts, BaseAgent, CommandArgs, CommandName
 
+def truncate_result(result, strategy):
+    """
+    {
+        # start percentage + half middle percentage is lower or equal to 50%
+        # end percentage + half middle percentage is lower or equal to 50%
+        "start": {
+            "include": True,
+            "percentage": 0.1, # equivalent to 10%
+            "limit": 500, # max number of tokens 
+        },
+        "middle": {
+            "include": True,
+            "percentage": 0.1, # equivalent to 10%
+            "limit": 500, # max number of tokens 
+        },
+        "end":{
+            "include": True,
+            "percentage": 0.1, # equivalent to 10%
+            "limit": 500, # max number of tokens 
+        }
+    }
+    """
+    if strategy["start"]["include"]:
+        if strategy["start"]["percentage"]>0.5:
+            raise ValueError("THE PERCENTAGE OF TOKENS KEPT AT THE START OF THE STRING CANNOT BE HIGHER THAN 50%")
+        if strategy["middle"]["include"]:
+            if strategy["middle"]["percentage"]>1:
+                raise ValueError("THE PERCENTAGE OF TOKENS CANNOT BE HIGHER THAN 100%")
+            if strategy["start"]["percentage"] + (strategy["middle"]["percentage"])/2 > 0.5:
+                raise ValueError("START TOKENS + HALF MIDDLE TOKENS CANNOT BE HIGHER THAN 0.5")
 
+    if strategy["end"]["include"]:
+        if strategy["end"]["percentage"]>0.5:
+            raise ValueError("THE PERCENTAGE OF TOKENS KEPT AT THE END OF THE STRING CANNOT BE HIGHER THAN 50%")
+        if strategy["middle"]["include"]:
+            if strategy["middle"]["percentage"]>1:
+                raise ValueError("THE PERCENTAGE OF TOKENS CANNOT BE HIGHER THAN 100%")
+            if strategy["end"]["percentage"] + (strategy["middle"]["percentage"])/2 > 0.5:
+                raise ValueError("END TOKENS + HALF MIDDLE TOKENS CANNOT BE HIGHER THAN 0.5")
+
+    if strategy["middle"]["include"] and strategy["middle"]["percentage"] > 1:
+        raise ValueError("THE PERCENTAGE OF TOKENS CANNOT BE HIGHER THAN 100%")
+
+    start_text = ""
+    middle_text = ""
+    end_text = ""
+
+    final_text = "## We truncated the output of the command because it is too long.\n"
+
+    # TODO(handle 100 inclusion)  
+    if strategy["start"]["include"]:
+        start_text = result[:min(int(strategy["start"]["percentage"] * len(result)), strategy["start"]["limit"])]
+        final_text +=  "## The text that appears at the begining of the result is:\n"
+        final_text += start_text
+
+    if strategy["middle"]["include"]:
+        middle_text = result[
+            int(len(result) / 2 - min(strategy["middle"]["percentage"] * len(result) / 2, strategy["middle"]["limit"]/2)):
+            int(len(result) / 2 + min(strategy["middle"]["percentage"] * len(result) / 2, strategy["middle"]["limit"]/2))]
+        final_text += "\n## The text that appears at the middle of the output is:\n"
+        final_text += middle_text
+
+    if strategy["end"]["include"]:
+        end_text = result[int(len(result) - min(strategy["end"]["percentage"] * len(result),  strategy["end"]["limit"])):]
+        final_text += "\n## The text that appears at the end of the output is:\n"
+        final_text += end_text
+
+    return final_text
 class Agent(BaseAgent):
     """Agent class for interacting with Auto-GPT."""
 
@@ -155,7 +222,13 @@ class Agent(BaseAgent):
             if len(str(command_result)) < 15000:
                 result = f"Command {command_name} returned: " f"{command_result}"
             else:
-                result = f"Command {command_name} returned a lengthy response, we truncated it to the first 15000 characters: " f"{str(command_result)[:15000]}"
+                # TODO(test this part)
+                print("TRUNCATING RESULT BASED ON STRAGEY:")
+                print(self.hyperparams["output_limit"])
+                strategy = self.hyperparams["output_limit"]
+                result = truncate_result(command_result, strategy)
+
+                #result = f"Command {command_name} returned a lengthy response, we truncated it to the first 15000 characters: " f"{str(command_result)[:15000]}"
             result_tlength = count_string_tokens(str(command_result), self.llm.name)
             memory_tlength = count_string_tokens(
                 str(self.history.summary_message()), self.llm.name

@@ -285,14 +285,10 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
     """
     if "COPY" in text:
         return "The usage of command 'COPY' is prohibited inside the Dockerfile script. You should just clone the repository inside the docker images and all the files of that repository would be there. No need to copy."
-    #checksum = text_checksum(text)
-    #if is_duplicate_operation("write", filename, agent, checksum):
-    #    return "Error: File has already been updated."
+
     agent.written_files.append((filename, text))
     if not agent.container:
         try:
-            #directory = os.path.dirname(filename)
-            #os.makedirs(directory, exist_ok=True)
             workspace = agent.workspace_path
             print("AGENT RPOJECT PATH:::::::", agent.project_path)
             if (agent.project_path + "/") in filename:
@@ -300,13 +296,6 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
                 full_path = os.path.join(workspace, filename)
             else:
                 full_path = os.path.join(workspace, agent.project_path, filename)
-                #print("PATH TAKEN FROM HERE 2222")
-                #print("FULL PATH++++++", full_path)
-                #print(workspace)
-                #print(agent.project_path)
-                #print(filename)
-            #if "dockerfile" in filename.lower():
-            #    text = update_dockerfile_content(text)
 
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(text)
@@ -315,7 +304,8 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
             
             print("DOCKER FILE WAS WRITTEN TO ------ ", full_path)
             
-            if "dockerfile" in filename.lower():
+            # ENABLE DOWNSTREAM TASKS WITH CREATE FILES
+            if "dockerfile" in filename.lower() and agent.hyperparams["write_to_file"]["EXEC_POLICY"]!="RESTRICT":
                 image_log = "IMAGE ALREADY EXISTS"
                 if not check_image_exists(agent.project_path.lower()+"_image:ExecutionAgent"):
                     image_log = build_image(os.path.join(workspace, agent.project_path), agent.project_path.lower()+"_image:ExecutionAgent")
@@ -328,13 +318,21 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
                     return image_log + "\nContainer launched successfuly\n" + "\nThe current working directory within the container is: {}".format(cwd)
                 else:
                     return str(image_log) + "\n" + str(container)
+
+            # TODO(test this part)
+            if agent.hyperparams["write_to_file"]["EXEC_POLICY"] != "RESTRICT":
+                exec_blocs_result = ""
+                for bloc in agent.hyperparams["write_to_file"]["EXEC_BLOCS"]:
+                    if eval(bloc["condition"]):
+                        exec_blocs_result += "\n" + str(eval(bloc["code"]))
             return "File written to successfully."
         except Exception as err:
             return f"Error: {err}"
     else:
-        print("I am HERE TRYING TO WRITE FILE IN CONTAINER 191919191919191919919191919119999911111111111111119")
+        print("THE AGENT IS WRITING A FILE INSIDE THE CONTAINER...")
         print("PROJECT_PATH:", agent.project_path)
         print("FILENAME:", filename)
+        #TODO(Check if this condition should be changed as well)
         if "dockerfile" in filename.lower():
             return "You cannot create another docker image, you already have access to a running container. If a pacakge is missing or error happened during installation, you can debug and fix the problem inside the running container by interacting with the linux_terminal tool."
         write_result = str(write_string_to_file(agent.container, text, os.path.join("/app", agent.project_path, filename.split("/")[-1])))

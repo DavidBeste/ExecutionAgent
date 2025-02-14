@@ -5,5 +5,29 @@
     "WORKFLOWS-SEARCH": "TRUE",
     "BUDGET": 40,
     "REQUIRED_FILES": ["test_results.txt", "SETUP_AND_INSTALL.sh", "Dockerfile"],
-    "KEEP_CONTAINER": "FALSE"
+    "KEEP_CONTAINER": "FALSE",
+    "WRITE_TO_FILE": {
+        "EXEC_POLICY": "RESTRICT",
+        "EXEC_BLOCS": [
+        ]
+    },
+    "OUTPUT_LIMIT":{
+        "limit": 15000,
+        "start": {
+            "include": true,
+            "percentage": 0.1, 
+            "limit": 2000
+        },
+        "middle": {
+            "include": true,
+            "percentage": 0.1, 
+            "limit": 6000 
+        },
+        "end":{
+            "include": true,
+            "percentage": 0.1,
+            "limit": 2000
+        }
+    }
+    
 }

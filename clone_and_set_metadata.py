@@ -30,7 +30,9 @@ def create_metadata_file(project_name, github_url, language, image):
         },
         "language": language,
         "image": image,
-        "keep_container": customize["KEEP_CONTAINER"]
+        "keep_container": customize["KEEP_CONTAINER"],
+        "write_to_file": customize["WRITE_TO_FILE"],
+        "output_limit": customize["OUTPUT_LIMIT"]
     }
 
     # Define metadata file path
