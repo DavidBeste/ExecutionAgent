@@ -177,6 +177,7 @@ class BaseAgent(metaclass=ABCMeta):
 
         self.container = None
 
+        # TODO(update based on new "write_to_file" implementation)
         if self.hyperparams["image"] != "NIL" and 1 == 0:
             self.container = start_container(self.hyperparams["image"])
             if self.container == None:
@@ -537,11 +538,13 @@ class BaseAgent(metaclass=ABCMeta):
                 previous_memory = pm.read()
             definitions_prompt += "\nFrom previous attempts we learned that: {}\n".format(previous_memory)
         
+        # TODO(probably remove)
         if self.found_workflows:
             definitions_prompt += "\nThe following workflow files might contain information on how to setup the project and run test cases. We extracted the most important installation steps found in those workflows and turned them into a bash script. This might be useful later on when building/installing and testing the project:\n"
             for w in self.found_workflows:
                 definitions_prompt += "\nWorkflow file: {}\nExtracted installation steps:\n{}\n".format(w, self.workflow_to_script(w))
         
+        # TODO
         if self.dockerfiles:
             definitions_prompt += "\nWe found the following dockerfile scripts within the repo. The dockerfile scripts might help you build a suitable docker image for this repository: "+ " ,".join(self.dockerfiles) + "\n"
         
