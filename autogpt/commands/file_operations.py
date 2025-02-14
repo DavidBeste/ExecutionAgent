@@ -283,8 +283,9 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
     Returns:
         str: A message indicating success or failure
     """
-    if "COPY" in text:
-        return "The usage of command 'COPY' is prohibited inside the Dockerfile script. You should just clone the repository inside the docker images and all the files of that repository would be there. No need to copy."
+    # no longer needed
+    #if "COPY" in text:
+    #    return "The usage of command 'COPY' is prohibited inside the Dockerfile script. You should just clone the repository inside the docker images and all the files of that repository would be there. No need to copy."
 
     agent.written_files.append((filename, text))
     if not agent.container:
