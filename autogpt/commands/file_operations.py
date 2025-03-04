@@ -306,6 +306,7 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
             print("DOCKER FILE WAS WRITTEN TO ------ ", full_path)
             
             # ENABLE DOWNSTREAM TASKS WITH CREATE FILES
+            # TODO(adjust code to attach container properly if built via command)
             if "dockerfile" in filename.lower() and agent.hyperparams["write_to_file"]["EXEC_POLICY"]!="RESTRICT":
                 image_log = "IMAGE ALREADY EXISTS"
                 if not check_image_exists(agent.project_path.lower()+"_image:ExecutionAgent"):
