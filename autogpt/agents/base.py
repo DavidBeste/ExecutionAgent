@@ -28,6 +28,7 @@ from autogpt.json_utils.utilities import extract_dict_from_response
 from autogpt.commands.info_collection_static import collect_requirements, infer_requirements, extract_instructions_from_readme
 from autogpt.commands.docker_helpers_static import start_container, remove_ansi_escape_sequences, ask_chatgpt
 from autogpt.commands.search_documentation import search_install_doc
+from autogpt.commands.screen_terminal import ScreenTerminal
 
 CommandName = str
 CommandArgs = dict[str, str]
@@ -169,8 +170,11 @@ class BaseAgent(metaclass=ABCMeta):
         self.left_commands = 0
         self.max_budget = -1
 
-        self.shell = pexpect.spawnu('/bin/bash')
-        self.interact_with_shell("cd {}".format(os.path.join(self.workspace_path, self.project_path)))
+        #replacing this terminal with screen session
+        #self.shell = pexpect.spawnu('/bin/bash')
+        #self.interact_with_shell("cd {}".format(os.path.join(self.workspace_path, self.project_path)))
+
+        self.shell = ScreenTerminal()
 
         self.commands_and_summary = []
         self.written_files = []
@@ -328,13 +332,13 @@ class BaseAgent(metaclass=ABCMeta):
 
     def interact_with_shell(self, command):
         try:
-            self.shell.sendline(command)
-            self.shell.expect("\$ ", timeout=1500)
-            self.shell.sendline("pwd")
-            self.shell.expect("\$ ", timeout=1500)
+            self.shell.send_command(command)
+            output = terminal.get_output()
+            clean_output = remove_ansi_escape_sequences(output)
+            clean_output = self.remove_progress_bars(clean_output)
         except Exception as e:
             return ("Error happened: {}".format(e), None)
-        return remove_ansi_escape_sequences(self.shell.before), remove_ansi_escape_sequences(self.shell.after)
+        return clean_output, clean_output
 
     def validate_command_parsing(self, command_dict):
         with open("commands_interface.json") as cif:
