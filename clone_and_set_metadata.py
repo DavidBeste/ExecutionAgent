@@ -3,12 +3,15 @@ import json
 import sys
 import subprocess
 
+oss_fuzz_dir = "https://github.com/google/oss-fuzz"
+
 def clone_repository(github_url, project_name):
 
     cwd = os.getcwd()
     # Clone the repository
 
     os.chdir("execution_agent_workspace/")
+    subprocess.run(["git", "clone", oss_fuzz_dir])
     subprocess.run(["git", "clone", github_url])
     #print("project cloned 999999999999999")
     # Define project directory

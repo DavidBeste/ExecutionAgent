@@ -162,7 +162,9 @@ def list_files(agent: Agent) -> str:
 )
 def read_file(file_path: str, agent: Agent) -> str:
     project_path = agent.project_path
-    with open(os.path.join(workspace_folder, project_path, file_path)) as fpp:
+    #with open(os.path.join(workspace_folder, project_path, file_path)) as fpp:
+    print(os.getcwd())
+    with open(os.path.join(workspace_folder, file_path)) as fpp:
         return "The result of reading the file {}:\n{}".format(file_path, fpp.read())
 
 """@command(
