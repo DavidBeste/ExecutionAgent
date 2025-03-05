@@ -1,6 +1,6 @@
 Now, you have to summarize and extract important information from the output of the last command.
 
-Ensure accuracy and relevance, such as software versions, tool names, or lists of requirements.
+Ensure accuracy and relevance, such as software versions, tool names, lists of requirements, or the chosen function to fuzz.
 
 Your summary and extracted information (extracted dependencies, relevant installation commands, and important links) should have always the following JSON format:
 
