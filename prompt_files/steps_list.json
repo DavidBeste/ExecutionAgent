@@ -7,43 +7,43 @@
     },
 	"2": {
         "static_header": "Step 2: Create a folder inside oss-fuzz/projects/. ",
-		"step_line": "- Use linux_terminal to create a folder with the target project name inside oss-fuzz/projects/ from the current directory. Example: mkdir oss_fuzz/projects/<target_project>",
+		"step_line": "- Use linux_terminal to create a folder with the target project name inside oss-fuzz/projects/ from the current directory. Example: mkdir oss-fuzz/projects/<target_project>",
         "result_of_step": []
     },
 	"3": {
         "static_header": "Step 3: Write a libFuzzer-compatible fuzz target file. ",
-		"step_line": "- Use write_to_file inside the newly created folder to create the fuzz target using the 'LLVMFuzzerTestOneInput' function that calls the identified file's vulnerable or critical functions.\n- The name of the fuzz target file should be '<name_of_selected_function>_fuzzer.cc'.",
+		"step_line": "- Use write_to_file inside the newly created folder to create the fuzz target using the 'LLVMFuzzerTestOneInput' function that calls the identified file's vulnerable or critical functions.\n- The name of the fuzz target file should be oss-fuzz/projects/<target_project>/<name_of_selected_function>_fuzzer.cc.",
         "result_of_step": []
     },
 	
 	"4": {
         "static_header": "Step 4: Create project.yaml. ",
-		"step_line": "- Use 'write_to_file' inside the newly created folder to create the 'project.yaml' file.\n- Make sure to use entries that make sense for the target project.",
+		"step_line": "- Use 'write_to_file' inside the newly created folder to create the oss-fuzz/projects/<target_project>/project.yaml file.\n- Make sure to use entries that make sense for the target project.",
         "result_of_step": []
     },
     "5": {
         "static_header": "Step 5: Create build.sh. ",
-        "step_line": "- Use 'write_to_file' inside the newly created folder to create the 'build.sh' that can later be launches inside the docker container.",
+        "step_line": "- Use 'write_to_file' inside the newly created folder to create the oss-fuzz/projects/<target_project>/build.sh that can later be launches inside the docker container.",
         "result_of_step": []
     },
     "6": {
         "static_header": "Step 6: Create Dockerfile. ",
-        "step_line": "- Use 'write_to_file' inside the newly created folder to create a dockerfile that gets an oss-fuzz image from gcr.io/oss-fuzz-base/base-builder.\n- The Dockerfile should also update and upgrade the system and install necessary packages inside the container to get the project and fuzzer running\n- Clone the target repository into the container and if necessary, dependencies as well\n- Furthermore, add relevant fuzzing testcases, e.g., from https://lcamtuf.coredump.cx/afl/demo/afl_testcases.tgz $SRC/afl_testcases.tgz\n- Change the working directory to the project name.\n- Copy the build.sh and fuzzers into the docker container.",
+        "step_line": "- Use 'write_to_file' inside the newly created folder oss-fuzz/projects/<target_project>/ to create a dockerfile that gets an oss-fuzz image from gcr.io/oss-fuzz-base/base-builder.\n- The Dockerfile should also update and upgrade the system and install necessary packages inside the container to get the project and fuzzer running\n- Clone the target repository into the container and if necessary, dependencies as well\n- Furthermore, add relevant fuzzing testcases, e.g., from https://lcamtuf.coredump.cx/afl/demo/afl_testcases.tgz $SRC/afl_testcases.tgz\n- Change the working directory to the project name.\n- Copy the build.sh and fuzzers into the docker container.",
         "result_of_step": []
     },
     "7": {
         "static_header": "Step 7: Build the image. ",
-        "step_line": "- Use 'linux_terminal' inside the newly created folder to call python3 oss_fuzz/infra/helper.py build_image <project_name> inside the OSS-Fuzz directory.",
+        "step_line": "- Use 'linux_terminal' inside the newly created folder to call 'python3 oss-fuzz/infra/helper.py build_image <project_name> --no-pull' inside the OSS-Fuzz directory.",
         "result_of_step": []
     },
     "8": {
         "static_header": "Step 8: Build the fuzzers. ",
-        "step_line": "- Use 'linux_terminal' inside the newly created folder to call python3 oss_fuzz/infra/helper.py build_fuzzers --sanitizer address <project_name> inside the OSS-Fuzz directory.",
+        "step_line": "- Use 'linux_terminal' inside the newly created folder to call python3 oss-fuzz/infra/helper.py build_fuzzers --sanitizer address <project_name> inside the OSS-Fuzz directory.",
         "result_of_step": []
     },
     "9": {
         "static_header": "Step 9: Run the fuzzers. ",
-        "step_line": "- Use 'linux_terminal' inside the newly created folder to call python3 oss_fuzz/infra/helper.py run_fuzzer --engine libfuzzer --sanitizer address <project_name>.",
+        "step_line": "- Use 'linux_terminal' inside the newly created folder to call python3 oss-fuzz/infra/helper.py run_fuzzer --engine libfuzzer --sanitizer address <project_name>.",
         "result_of_step": []
     }
 }
