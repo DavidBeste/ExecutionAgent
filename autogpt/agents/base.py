@@ -8,8 +8,10 @@ import time
 import re
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Any, Literal, Optional
+import getpass
 import json
 import os
+import socket
 import subprocess
 
 if TYPE_CHECKING:
@@ -28,6 +30,7 @@ from autogpt.commands.info_collection_static import collect_requirements, infer_
 from autogpt.commands.docker_helpers_static import start_container, remove_ansi_escape_sequences, ask_chatgpt
 from autogpt.commands.search_documentation import search_install_doc
 from autogpt.commands.screen_terminal import ScreenTerminal
+#from autogpt.commands.subprocess_terminal import ShellInteractor
 
 CommandName = str
 CommandArgs = dict[str, str]
@@ -104,6 +107,9 @@ class BaseAgent(metaclass=ABCMeta):
             self.cpp_guidelines = pgl.read()
         with open(os.path.join(prompt_files, "rust_guidelines")) as pgl:
             self.rust_guidelines = pgl.read()
+            
+        with open(os.path.join(prompt_files, "fuzzing_guidelines")) as fgl:
+            self.fuzzing_guidelines = fgl.read()
 
         with open(os.path.join(prompt_files, "tools_list")) as tls:
             self.prompt_dictionary["commands"] = tls.read()
@@ -117,10 +123,12 @@ class BaseAgent(metaclass=ABCMeta):
             self.prompt_dictionary["general_guidelines"]= self.javascript_guidelines
         elif self.hyperparams["language"].lower() in ["c", "c++"]:
             self.prompt_dictionary["general_guidelines"]= self.c_guidelines
+            
+        self.prompt_dictionary["general_guidelines"] = self.fuzzing_guidelines
         
-        self.prompt_dictionary["general_guidelines"]  += "\nWhen debugging a problem, if an approach does not work for multiple consecutibe iterations, think of changing your approach of addressing the problem.\n"
+        self.prompt_dictionary["general_guidelines"]  += "\nWhen debugging a problem, if an approach does not work for multiple consecutive iterations, think of changing your approach of addressing the problem.\n"
         
-        #self.prompt_dictionary["general_guidelines"] = ""
+        
         
         """
         The system prompt sets up the AI's personality and explains its goals,
@@ -148,7 +156,7 @@ class BaseAgent(metaclass=ABCMeta):
         self.keep_container = True if self.hyperparams["keep_container"] == "TRUE" else False
         
         self.current_step = "1"
-        self.steps_list = ["1", "2", "3", "4", "5", "6", "7"]
+        self.steps_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
         
         with open(os.path.join(prompt_files, "steps_list.json")) as slj:
             self.steps_object = json.load(slj)
@@ -171,9 +179,15 @@ class BaseAgent(metaclass=ABCMeta):
 
         #replacing this terminal with screen session
         #self.shell = pexpect.spawnu('/bin/bash')
-        #self.interact_with_shell("cd {}".format(os.path.join(self.workspace_path, self.project_path)))
+        #print("Changing dir")
+        
 
         self.shell = ScreenTerminal()
+        time.sleep(1)
+        self.base_path = self.shell.get_output().split("$")[0]
+        self.base_path = "superuser@LAPTOP-U6SP6GKR:/mnt/c/Users/David Beste/Documents/ExecutionAgentNew/ExecutionAgent"
+        print("self.base_path: " + self.base_path)
+        self.interact_with_shell("cd {}".format(os.path.join(self.workspace_path)))
 
         self.commands_and_summary = []
         self.written_files = []
@@ -187,9 +201,11 @@ class BaseAgent(metaclass=ABCMeta):
                 logger.info("ERROR HAPPENED WHILE CREATING THE CONTAINER")
                 self.hyperparams["image"] = "NIL"
 
-        self.found_workflows = self.find_workflows(self.project_path)
+    #    self.found_workflows = self.find_workflows(self.project_path)
+        self.found_workflows = ""
         self.search_results = self.search_documentation()
-        self.dockerfiles = self.find_dockerfiles()
+    #    self.dockerfiles = self.find_dockerfiles()
+        self.dockerfiles = ""
         self.command_stuck = False
 
         
@@ -321,20 +337,33 @@ class BaseAgent(metaclass=ABCMeta):
             summary = ""
             for i in range(int(len(text)/100000)+1):
                 query= "Here is the output of a command that you should clean:\n"+ text[i*100000: (i+1)*100000]
+                print(system_prompt)
+                print(query)
+                
                 summary += "\n" + ask_chatgpt(query, system_prompt)
                 print("CLEANED 100K CHARACTERS.........")
                 print("LEN CLEANED:", len(summary))
         except Exception as e:
             print("ERRRRRROOOOOOOOOOOR IN PROGRESSSSSSSSSS:", e)
+            
         return summary
 
 
     def interact_with_shell(self, command):
         try:
             self.shell.send_command(command)
-            output = terminal.get_output()
-            clean_output = remove_ansi_escape_sequences(output)
-            clean_output = self.remove_progress_bars(clean_output)
+            output = self.shell.get_output()
+            print(output)
+            print(output.split(";touch /tmp/done.txt"))
+            user_name = getpass.getuser()
+            host_name = socket.gethostname()
+            clean_output = "\n".join(output.split(";touch /tmp/done.txt")[-2:])
+        #    clean_output = user_name + "@" + host_name + f"{user_name}@{host_name}".join(clean_output.split(user_name + "@" + host_name)[1:])
+            clean_output = remove_ansi_escape_sequences(clean_output)
+        #    clean_output = self.remove_progress_bars(clean_output)
+        #    clean_output = self.base_path + str(clean_output.split(self.base_path)[-2])
+        #    print(clean_output.split(";touch /tmp/done.txt"))
+            
         except Exception as e:
             return ("Error happened: {}".format(e), None)
         return clean_output, clean_output
@@ -542,14 +571,14 @@ class BaseAgent(metaclass=ABCMeta):
             definitions_prompt += "\nFrom previous attempts we learned that: {}\n".format(previous_memory)
         
         # TODO(probably remove)
-        if self.found_workflows:
-            definitions_prompt += "\nThe following workflow files might contain information on how to setup the project and run test cases. We extracted the most important installation steps found in those workflows and turned them into a bash script. This might be useful later on when building/installing and testing the project:\n"
-            for w in self.found_workflows:
-                definitions_prompt += "\nWorkflow file: {}\nExtracted installation steps:\n{}\n".format(w, self.workflow_to_script(w))
+        #if self.found_workflows:
+        #    definitions_prompt += "\nThe following workflow files might contain information on how to setup the project and run test cases. We extracted the most important installation steps found in those workflows and turned them into a bash script. This might be useful later on when building/installing and testing the project:\n"
+        #    for w in self.found_workflows:
+        #        definitions_prompt += "\nWorkflow file: {}\nExtracted installation steps:\n{}\n".format(w, self.workflow_to_script(w))
         
         # TODO
-        if self.dockerfiles:
-            definitions_prompt += "\nWe found the following dockerfile scripts within the repo. The dockerfile scripts might help you build a suitable docker image for this repository: "+ " ,".join(self.dockerfiles) + "\n"
+        #if self.dockerfiles:
+        #    definitions_prompt += "\nWe found the following dockerfile scripts within the repo. The dockerfile scripts might help you build a suitable docker image for this repository: "+ " ,".join(self.dockerfiles) + "\n"
         
         if self.search_results:
             definitions_prompt += "\nWe searched on google for installing / building {} from source code on Ubuntu/Debian.".format(self.project_path)
