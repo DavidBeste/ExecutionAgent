@@ -27,7 +27,8 @@ from autogpt.memory.message_history import MessageHistory
 from autogpt.prompts.prompt import DEFAULT_TRIGGERING_PROMPT
 from autogpt.json_utils.utilities import extract_dict_from_response
 from autogpt.commands.info_collection_static import collect_requirements, infer_requirements, extract_instructions_from_readme
-from autogpt.commands.docker_helpers_static import start_container, remove_ansi_escape_sequences, ask_chatgpt
+from autogpt.commands.docker_helpers_static import build_image, execute_command_in_container, start_container, remove_ansi_escape_sequences, ask_chatgpt, check_image_exists
+# from autogpt.commands.file_operations import launch_docker
 from autogpt.commands.search_documentation import search_install_doc
 from autogpt.commands.screen_terminal import ScreenTerminal
 #from autogpt.commands.subprocess_terminal import ShellInteractor
@@ -86,7 +87,7 @@ class BaseAgent(metaclass=ABCMeta):
 
         self.cycle_count = 0
         """The number of cycles that the agent has run since its initialization."""
-        
+
         with open(experiment_file) as hper:
             self.hyperparams = json.load(hper)
 
@@ -156,7 +157,7 @@ class BaseAgent(metaclass=ABCMeta):
         self.keep_container = True if self.hyperparams["keep_container"] == "TRUE" else False
         
         self.current_step = "1"
-        self.steps_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        self.steps_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
         
         with open(os.path.join(prompt_files, "steps_list.json")) as slj:
             self.steps_object = json.load(slj)
@@ -188,11 +189,11 @@ class BaseAgent(metaclass=ABCMeta):
         self.base_path = "superuser@LAPTOP-U6SP6GKR:/mnt/c/Users/David Beste/Documents/ExecutionAgentNew/ExecutionAgent"
         print("self.base_path: " + self.base_path)
         self.interact_with_shell("cd {}".format(os.path.join(self.workspace_path)))
-
+        self.launch_docker()
         self.commands_and_summary = []
         self.written_files = []
 
-        self.container = None
+    #    self.container = None
 
         # TODO(update based on new "write_to_file" implementation)
         if self.hyperparams["image"] != "NIL" and 1 == 0:
@@ -204,6 +205,7 @@ class BaseAgent(metaclass=ABCMeta):
     #    self.found_workflows = self.find_workflows(self.project_path)
         self.found_workflows = ""
         self.search_results = self.search_documentation()
+    #    self.search_results = ""
     #    self.dockerfiles = self.find_dockerfiles()
         self.dockerfiles = ""
         self.command_stuck = False
@@ -348,6 +350,23 @@ class BaseAgent(metaclass=ABCMeta):
             
         return summary
 
+    def launch_docker(self):
+        workspace = self.workspace_path
+        image_log = "IMAGE ALREADY EXISTS"
+        if True or not check_image_exists("image:ExecutionAgent"):
+            image_log = build_image(workspace, "image:ExecutionAgent")
+            if image_log.startswith("An error occurred while building the Docker image"):
+                return "The following error occured while trying to build a docker image from the docker script you provide (if the error persists, try to simplify your docker script), please fix it:\n" + image_log
+            
+        container = start_container("image:ExecutionAgent")
+
+        if container is not None:
+            self.container = container
+            cwd = execute_command_in_container(container, "pwd")
+            print(image_log + "\nContainer launched successfuly\n" + "\nThe current working directory within the container is: {}".format(cwd))
+            return container
+        else:
+            return str(image_log) + "\n" + str(container)
 
     def interact_with_shell(self, command):
         try:
@@ -547,7 +566,7 @@ class BaseAgent(metaclass=ABCMeta):
         ## added this part to change the prompt structure
 
         steps_text = self.construct_executed_steps_text()
-         
+        
         prompt = ChatSequence.for_model(
             self.llm.name,
             [Message("system", self.prompt_dictionary["role"])])
@@ -564,6 +583,15 @@ class BaseAgent(metaclass=ABCMeta):
         
         definitions_prompt += "\nProject path: the project under scope has the following path/name within the file system, which you should use when calling the tools: {}".format(self.project_path) + "\n"
         definitions_prompt += "\nProject github url (needed for dockerfile script): {}\n".format(self.project_url)
+
+        with open(f"{self.workspace_path}/Dockerfile", "r") as f:
+            dockerfile = f.read()
+
+        with open(f"{self.workspace_path}/build.sh", "r") as f:
+            build = f.read()
+
+        definitions_prompt += f"\nGeneral purpose Dockerfile for this project:\n{dockerfile}"
+        definitions_prompt += f"\nGeneral purpose build.sh:\n{build}"
         
         if os.path.exists("problems_memory/{}".format(self.project_path)):
             with open("problems_memory/{}".format(self.project_path)) as pm:
@@ -580,14 +608,20 @@ class BaseAgent(metaclass=ABCMeta):
         #if self.dockerfiles:
         #    definitions_prompt += "\nWe found the following dockerfile scripts within the repo. The dockerfile scripts might help you build a suitable docker image for this repository: "+ " ,".join(self.dockerfiles) + "\n"
         
-        if self.search_results:
-            definitions_prompt += "\nWe searched on google for installing / building {} from source code on Ubuntu/Debian.".format(self.project_path)
-            definitions_prompt += "Here is the summary of the top 5 results:\n" + self.search_results + "\n"
+        #if self.search_results:
+        #    definitions_prompt += "\nWe searched on google for installing / building {} from source code on Ubuntu/Debian.".format(self.project_path)
+        #    definitions_prompt += "Here is the summary of the top 5 results:\n" + self.search_results + "\n"
         
         
-        if self.hyperparams["image"]!="NIL":
-            definitions_prompt += "For this particular project, the docker image have been already created and the container have been launched, you can skip steps 1 and 2; You can start directly from step 3 (see the steps list below).\n"
+        
+        #if self.hyperparams["image"]!="NIL":
+        #    definitions_prompt += "For this particular project, the docker image have been already created and the container have been launched, you can skip steps 1 and 2; You can start directly from step 3 (see the steps list below).\n"
         #definitions_prompt += steps_text + "\n"
+        
+        #if not self.container:
+        #    definitions_prompt += "You have not launched a docker image yet so you can only operate on the native directory."
+        #else:
+        #    definitions_prompt += "You have launched a docker image so you can operate both on the native directory and inside the docker environment."
         
         if len(self.history) > 2:
             last_command = self.history[-2]
@@ -614,6 +648,8 @@ class BaseAgent(metaclass=ABCMeta):
                 self.llm.name,
                 [Message("user", definitions_prompt + "\n" + steps_text + "\n\n" + cycle_instruction+"\n" + command_result.content)]
             ))
+
+        
         return prompt
 
     def construct_prompt(
