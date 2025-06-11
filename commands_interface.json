@@ -1,6 +1,9 @@
 {
     "linux_terminal": ["command"],
-    "read_file": ["file_path"],
+    "read_file": ["file_path", "container"],
     "goals_accomplished": ["reason"],
-    "write_to_file ": ["filename", "text"]
+    "launch_docker": ["filename"],
+    "write_to_file ": ["filename", "text", "container"],
+    "build_image": ["name"],
+    "build_fuzzers": ["name"]
 }
