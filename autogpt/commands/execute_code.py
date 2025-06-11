@@ -236,11 +236,13 @@ def execute_shell(command: str, agent: Agent) -> str:
         return "You cannot execute call nano because it's an interactive command."
     elif "docker " in command:
         if agent.container:
-            return "You cannot execute docker commands. You already have access to a running container. If you are facing issues such as missing requirement or need to install a package, you can use linux_terminal to interact with the already running container and install or change whatever you want there. You cannot create another container"
-        else:
-            return "You cannot execute docker commands. Use the command write_to_file to create a dockerfile script which will automatically build and launch a container. If you are facing build error or issues, you can simplify your dockerfile script to reduce the source of errors"
+            return "You cannot execute docker commands inside the container. If you are facing issues such as missing requirement or need to install a package, you can use linux_terminal to interact with the already running container and install or change whatever you want there. You cannot create another container"
+    
     elif command.startswith("bash "):
         command = command.replace("bash ", "")
+
+    print("Current step: " + agent.current_step)
+
     if not validate_command(command, agent.config):
         logger.info(f"Command '{command}' not allowed")
         return "Error: This Shell Command is not allowed."
@@ -266,9 +268,8 @@ def execute_shell(command: str, agent: Agent) -> str:
 
     WAIT_TIME = 300
 
-    if not agent.container:
-        ret_val = agent.interact_with_shell(command)
-    else:
+    print("agent.container: ", agent.container)
+    if agent.container:
         if agent.command_stuck:
             if not (command.startswith("TERMINATE") or command.startswith("WAIT") or command.startswith("WRITE:")):
                 return """The terminal is stuck at command before this one. You cannot request executing a new command before terminating the previous one. To do that, you can make the following as your next output action: {"command": {"name": "linux_terminal", "args": {"command": "TERMINATE"}}}"""
@@ -323,6 +324,10 @@ def execute_shell(command: str, agent: Agent) -> str:
             return ret_val[0]
         else:
             agent.command_stuck = False
+
+    else:
+        return "You did not launch a container yet. You either have to launch a container or execute code from the native directory."
+
     return "The text that appears on the terminal after executing your command is:\n" + str(ret_val[0])
 
 @command(
