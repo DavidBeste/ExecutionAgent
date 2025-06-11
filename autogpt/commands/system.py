@@ -7,6 +7,7 @@ COMMAND_CATEGORY_TITLE = "System"
 
 from typing import NoReturn
 import os
+import subprocess
 from autogpt.agents.agent import Agent
 from autogpt.command_decorator import command
 from autogpt.commands.docker_helpers_static import execute_command_in_container, stop_and_remove
@@ -40,6 +41,10 @@ def task_complete(reason: str, agent: Agent) -> NoReturn:
     #    return "You cannot claim goal accomplished without running test cases, measuring coverage and saving them to the file 'coverage_results.txt'"
     if "dockerfile" not in files_list:
         return "You have not created a docker file that creates a docker images and installs the project within that image, installs the dependencies and run tests"
+    
+
+
+
     #if not any("coverage" in x for x in files_list):
     #    return "You should write test results into a file called: coverage_results.txt"
     #else:
@@ -67,3 +72,73 @@ def task_complete(reason: str, agent: Agent) -> NoReturn:
     with open(os.path.join("experimental_setups", agent.exp_number, "saved_contexts", project_path, "SUCCESS"), "w") as ssf:
         ssf.write("SUCCESS")
     quit()
+
+
+@command(
+    "build_image",
+    "Build the image to check the Dockerfile",
+    {
+        "name": {
+            "type": "string",
+            "description": "The name of the project to build for fuzzing with OSS-Fuzz",
+            "required": True,
+        }
+    },
+)
+def build_image(name: str, agent: Agent) -> str:
+    """
+    A function that builds the Dockerfile for OSS-Fuzz
+    """
+    print("Running now!")
+    result = subprocess.run(["python3", "execution_agent_workspace/oss-fuzz/infra/helper.py", "build_image", name, "--no-pull"], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    print(result)
+    print(result.stdout)
+    print(result.stderr)
+    print("Successfully run!")
+    return result.stdout + result.stderr  
+
+@command(
+    "build_fuzzers",
+    "Build the image to check the Dockerfile",
+    {
+        "name": {
+            "type": "string",
+            "description": "The name of the project to build for fuzzing with OSS-Fuzz",
+            "required": True,
+        }
+    },
+)
+def build_fuzzers(name: str, agent: Agent) -> str:
+    """
+    A function that builds the Fuzzers for OSS-Fuzz
+    """
+    print("Running now!")
+    result = subprocess.run(["python3", "execution_agent_workspace/oss-fuzz/infra/helper.py", "build_fuzzers", "--sanitizer", "address", name], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    print(result)
+    print(result.stdout)
+    print(result.stderr)
+    print("Successfully run!")
+    return result.stdout + result.stderr
+
+@command(
+    "check_build",
+    "Check if the build went correctly",
+    {
+        "name": {
+            "type": "string",
+            "description": "The name of the project to check for the integration with OSS-Fuzz",
+            "required": True,
+        }
+    },
+)
+def check_build(name: str, agent: Agent) -> str:
+    """
+    A function that checks the build
+    """
+    print("Running now!")
+    result = subprocess.run(["python3", "execution_agent_workspace/oss-fuzz/infra/helper.py", "check_build", name], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    print(result)
+    print(result.stdout)
+    print(result.stderr)
+    print("Successfully run!")
+    return result.stdout + result.stderr
