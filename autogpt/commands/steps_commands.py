@@ -15,6 +15,7 @@ from docker.errors import DockerException, ImageNotFound
 from docker.models.containers import Container as DockerContainer
 
 from autogpt.agents.agent import Agent
+from autogpt.commands.docker_helpers_static import read_file_from_container
 from autogpt.command_decorator import command
 from autogpt.logs import logger
 
@@ -160,12 +161,24 @@ def list_files(agent: Agent) -> str:
         }
     },
 )
-def read_file(file_path: str, agent: Agent) -> str:
-    project_path = agent.project_path
-    #with open(os.path.join(workspace_folder, project_path, file_path)) as fpp:
-    print(os.getcwd())
-    with open(os.path.join(workspace_folder, file_path)) as fpp:
-        return "The result of reading the file {}:\n{}".format(file_path, fpp.read())
+def read_file(file_path: str, container: bool, agent: Agent) -> str:
+    if container == "False":
+        project_path = agent.project_path
+        #with open(os.path.join(workspace_folder, project_path, file_path)) as fpp:
+        print(os.getcwd())
+        with open(os.path.join(workspace_folder, file_path)) as fpp:
+            return "The result of reading the file {}:\n{}".format(file_path, fpp.read())
+    
+    elif container == "True":
+        if agent.container:
+            #return read_file_from_container(agent.container, os.path.join("/app", agent.project_path, file_path.split("/")[-1]))
+            return read_file_from_container(agent.container, os.path.join("/app", agent.project_path, file_path))
+        
+        else:
+            return "You did not launch a container yet. You either have to launch a container or read from the native directory."
+        
+    else:
+        return "Invalid option for the container parameter provided! Only 'True' or 'False' are valid!"
 
 """@command(
     "write_dependencies_to_file",
