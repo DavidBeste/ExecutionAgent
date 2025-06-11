@@ -59,7 +59,7 @@ class ScreenTerminal:
         try:
             result = subprocess.run(["screen", "-S", self.session_name, "-X", "hardcopy", "output.log"], check=True)
             time.sleep(1)  # Ensure output is written
-            with open("output.log", "r") as f:
+            with open("output.log", "r", errors='ignore') as f:
                 return f.read()
         except Exception as e:
             return f"Error retrieving output: {e}"
