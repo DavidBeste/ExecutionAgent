@@ -30,7 +30,6 @@ def ask_chatgpt(query, system_message, model="gpt-4o-mini"):
     ]
     #response_format={ "type": "json_object" }
     response = chat.invoke(messages)
-
     return response.content
 
 import xml.etree.ElementTree as ET
@@ -312,6 +311,7 @@ def execute_command_in_container_screen(container, command):
         return output
 
     except Exception as e:
+        print(f"An error occurred while executing the command: {e}")
         return f"An error occurred while executing the command: {e}"
 
 # Example usage:
