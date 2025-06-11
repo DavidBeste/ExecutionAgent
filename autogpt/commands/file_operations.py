@@ -164,11 +164,15 @@ def log_operation(
             "type": "string",
             "description": "The path of the file to read",
             "required": True,
+        },
+        "container": {
+            "type": "string",
+            "description": "The variable to control whether to read outside or inside the container"
         }
     },
 )"""
 #@sanitize_path_arg("file_path")
-def read_file(file_path: str, agent: Agent) -> str:
+def read_file(file_path: str, container: bool, agent: Agent) -> str:
     """Read a file and return the contents
 
     Args:
@@ -177,7 +181,7 @@ def read_file(file_path: str, agent: Agent) -> str:
     Returns:
         str: The contents of the file
     """
-    if not agent.container:
+    if not container:
         print("READING FILE FROM OUTSIDE CONTAINER CRAZZZZZZZZZZZZZZZZZZZZZY")
         try:
             workspace = agent.workspace_path
@@ -197,7 +201,11 @@ def read_file(file_path: str, agent: Agent) -> str:
         except Exception as e:
             return f"Error: {str(e)}"
     else:
-        return read_file_from_container(agent.container, os.path.join("/app", agent.project_path, file_path.split("/")[-1]))
+        if agent.container:
+            return read_file_from_container(agent.container, os.path.join("/app", agent.project_path, file_path.split("/")[-1]))
+        
+        else:
+            return "You did not launch a container yet. You either have to launch a container or read from the native directory."
 
 
 def ingest_file(
@@ -269,11 +277,16 @@ def update_dockerfile_content(dockerfile_content: str) -> str:
             "description": "The text to write to the file",
             "required": True,
         },
+        "container": {
+            "type": "string",
+            "description": "Flag to indicate whether to write a file on the native directory or inside a docker environment",
+            "required": True,
+        }
     },
     aliases=["write_file", "create_file"],
 )
 #@sanitize_path_arg("filename")
-def write_to_file(filename: str, text: str, agent: Agent) -> str:
+def write_to_file(filename: str, text: str, container: str, agent: Agent) -> str:
     """Write text to a file
 
     Args:
@@ -287,8 +300,10 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
     #if "COPY" in text:
     #    return "The usage of command 'COPY' is prohibited inside the Dockerfile script. You should just clone the repository inside the docker images and all the files of that repository would be there. No need to copy."
 
+    print("Current step: " + agent.current_step)
+
     agent.written_files.append((filename, text))
-    if not agent.container:
+    if container == "False":
         try:
             workspace = agent.workspace_path
             print("AGENT RPOJECT PATH:::::::", agent.project_path)
@@ -330,21 +345,57 @@ def write_to_file(filename: str, text: str, agent: Agent) -> str:
             return "File written to successfully."
         except Exception as err:
             return f"Error: {err}"
-    else:
-        print("THE AGENT IS WRITING A FILE INSIDE THE CONTAINER...")
-        print("PROJECT_PATH:", agent.project_path)
-        print("FILENAME:", filename)
-        #TODO(Check if this condition should be changed as well)
-        if "dockerfile" in filename.lower():
-            return "You cannot create another docker image, you already have access to a running container. If a pacakge is missing or error happened during installation, you can debug and fix the problem inside the running container by interacting with the linux_terminal tool."
-        write_result = str(write_string_to_file(agent.container, text, os.path.join("/app", agent.project_path, filename.split("/")[-1])))
-        if write_result=="None":
-            if "setup" in filename.lower() or "install" in filename.lower() or ".sh" in filename.lower():
-                return "installation script was written successfully, you should not run this script. If test cases were not yet run, you should do that with the help of linux_terminal. If you arleady run test cases successfully, you are done with the task."
-            else:
+    elif container == "True":
+        if agent.container:
+            print("THE AGENT IS WRITING A FILE INSIDE THE CONTAINER...")
+            print("PROJECT_PATH:", agent.project_path)
+            print("FILENAME:", filename)
+            #TODO(Check if this condition should be changed as well)
+            if "dockerfile" in filename.lower():
+                return "You cannot create another docker image, you already have access to a running container. If a package is missing or error happened during installation, you can debug and fix the problem inside the running container by interacting with the linux_terminal tool."
+            #write_result = str(write_string_to_file(agent.container, text, os.path.join("/app", agent.project_path, filename.split("/")[-1])))
+            write_result = str(write_string_to_file(agent.container, text, os.path.join("/app", agent.project_path, filename)))
+            if write_result=="None":
+    #           if "setup" in filename.lower() or "install" in filename.lower() or ".sh" in filename.lower():
+    #               return "installation script was written successfully, you should not run this script. If test cases were not yet run, you should do that with the help of linux_terminal. If you arleady run test cases successfully, you are done with the task."
+    #           else:
                 return "File written successfully."
+            else:
+                return write_result
         else:
-            return write_result
+            print("You did not launch a container yet. You either have to launch a container or write to the native directory.")
+            return "You did not launch a container yet. You either have to launch a container or write to the native directory."
+    else:
+        print("Invalid option for the container parameter provided! Only 'True' or 'False' are valid!")
+        return "Invalid option for the container parameter provided! Only 'True' or 'False' are valid!"
+    
+@command(
+    "launch_docker",
+    "Launches a test docker image",
+    {
+        "filename": {
+            "type": "string",
+            "description": "The name of the file to launch",
+            "required": True,
+        },
+    },
+)
+
+def launch_docker(filename: str, agent: Agent):
+    workspace = agent.workspace_path
+    image_log = "IMAGE ALREADY EXISTS"
+    if not check_image_exists(agent.project_path.lower()+"_image:ExecutionAgent"):
+        image_log = build_image(os.path.join(workspace, agent.project_path), agent.project_path.lower()+"_image:ExecutionAgent")
+        if image_log.startswith("An error occurred while building the Docker image"):
+            return "The following error occured while trying to build a docker image from the docker script you provide (if the error persists, try to simplify your docker script), please fix it:\n" + image_log
+    container = start_container(agent.project_path.lower()+"_image:ExecutionAgent")
+    if container is not None:
+        agent.container = container
+        cwd = execute_command_in_container(container, "pwd")
+        return image_log + "\nContainer launched successfuly\n" + "\nThe current working directory within the container is: {}".format(cwd)
+    else:
+        return str(image_log) + "\n" + str(container)
+    
 @sanitize_path_arg("filename")
 def append_to_file(
     filename: str, text: str, agent: Agent, should_log: bool = True
