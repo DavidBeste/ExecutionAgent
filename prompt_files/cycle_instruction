@@ -13,7 +13,7 @@ args: Record<string, any>;
 Here is an example of command call that you can output:
 
 {
-"thoughts": "I need to check for the available folders and files within the project's root folder.",
+"thoughts": "I need to check for the available folders and files within the docker environment to correctly set up the project and add OSS-Fuzz support. ",
 "command": {
 "name": "linux_terminal",
 "args": {
