@@ -1,49 +1,52 @@
 {
-	"1": {
-		"static_header": "Step 1: Analyze the cloned project to find a single file suitable for fuzzing. ",
-		"step_line": "- Use 'linux_terminal' to list files and identify relevant files inside the target project. Example: ls <target_project>.\n- Read relevant files using 'read_file' inside the target project. Do not change directories but use the read_file command like <target_project>/...\n- Use 'read_file' to identify a single file suitable for fuzzing, typically one that processes user input or untrusted data.\n- Pick a function in that file that should be fuzzed and remember the function signature. Do not change directories but use the commands with the path <target_project>/...",
-     
+    "1": {
+        "static_header": "Step 1: Based on the project, determine, which fuzzer is suitable for oss-fuzz integration. ",
+        "step_line": "- Chose between afl, honggfuzz and libfuzzer. Use 'linux_terminal' or 'read_file' to navigate through the project.",
         "result_of_step": []
     },
-	"2": {
-        "static_header": "Step 2: Create a folder inside oss-fuzz/projects/. ",
-		"step_line": "- Use linux_terminal to create a folder with the target project name inside oss-fuzz/projects/ from the current directory. Example: mkdir oss-fuzz/projects/<target_project>",
+    "2": {
+        "static_header": "Step 2: Based on the project generate a suitable fuzzer. ",
+        "step_line": "- Generate a fuzzer ending with .cc inside the docker environment using 'write_to_file' with the container=\"True\" flag. The fuzzer should call a function from the target project that is likely to process user input. ",
         "result_of_step": []
     },
-	"3": {
-        "static_header": "Step 3: Write a libFuzzer-compatible fuzz target file. ",
-		"step_line": "- Use write_to_file inside the newly created folder to create the fuzz target using the 'LLVMFuzzerTestOneInput' function that calls the identified file's vulnerable or critical functions.\n- The name of the fuzz target file should be oss-fuzz/projects/<target_project>/<name_of_selected_function>_fuzzer.cc.",
+    "3": {
+        "static_header": "Step 3: Install all necessary dependencies for the fuzzers. ",
+        "step_line": "- You are already in an instance of of gcr.io/oss-fuzz-base/base-builder so there is no need in manually installing the fuzzer engines. Use 'linux_terminal' to add and install fuzzing testcases and compile the existing fuzzers (*.cc files). ",
         "result_of_step": []
     },
-	
-	"4": {
-        "static_header": "Step 4: Create project.yaml. ",
-		"step_line": "- Use 'write_to_file' inside the newly created folder to create the oss-fuzz/projects/<target_project>/project.yaml file.\n- Make sure to use entries that make sense for the target project.",
+    "4":{
+        "static_header": "Step 4: Add fuzzing testcases to the docker environment.  ",
+        "step_line": "- Use 'linux_terminal' to add and install fuzzing testcases if it makes sense for the current project. ",
         "result_of_step": []
     },
-    "5": {
-        "static_header": "Step 5: Create build.sh. ",
-        "step_line": "- Use 'write_to_file' inside the newly created folder to create the oss-fuzz/projects/<target_project>/build.sh that can later be launches inside the docker container.",
-        "result_of_step": []
+    "5":{
+        "static_header": "Step 5: Compile the fuzzers inside the docker environment to make it ready for OSS-Fuzz integration.  ",
+        "step_line": "- Use 'linux_terminal' to compile the existing fuzzers (*.cc files). ",
+        "result_of_step": []    
     },
     "6": {
-        "static_header": "Step 6: Create Dockerfile. ",
-        "step_line": "- Use 'write_to_file' inside the newly created folder oss-fuzz/projects/<target_project>/ to create a dockerfile that gets an oss-fuzz image from gcr.io/oss-fuzz-base/base-builder.\n- The Dockerfile should also update and upgrade the system and install necessary packages inside the container to get the project and fuzzer running\n- Clone the target repository into the container and if necessary, dependencies as well\n- Furthermore, add relevant fuzzing testcases, e.g., from https://lcamtuf.coredump.cx/afl/demo/afl_testcases.tgz $SRC/afl_testcases.tgz\n- Change the working directory to the project name.\n- Copy the build.sh and fuzzers into the docker container.",
+        "static_header": "Step 6: Create a bash script for installation steps.",
+        "step_line": "- Use 'write_to_file' to save commands into oss-fuzz/projects/<project_name>/build.sh outside the docker environment that were necessary in the previous step to set up and compile the fuzzers.\n ",
         "result_of_step": []
     },
     "7": {
-        "static_header": "Step 7: Build the image. ",
-        "step_line": "- Use 'linux_terminal' inside the newly created folder to call 'python3 oss-fuzz/infra/helper.py build_image <project_name> --no-pull' inside the OSS-Fuzz directory.",
+        "static_header": "Step 7: Create a Dockerfile for OSS-Fuzz.",
+        "step_line": "- Use 'write_to_file' to save the commands that were necessary inside the testing docker envirinment into oss-fuzz/projects/<project_name>/Dockerfile outside the docker environment.\n-Gets an oss-fuzz image from gcr.io/oss-fuzz-base/base-builder for this purpose.\n- The Dockerfile should also update and upgrade the system and install necessary packages inside the container to get the project and fuzzer running\n- Clone the target repository into the container and if necessary, dependencies as well. \n- If an error occurs later, try alternating between installing dependencies via apt and manually cloning and installing them from their respective repositories.\n- Make sure to analyze the target project regarding dependencies, e.g., in the Readme file.\n- Furthermore, add relevant fuzzing testcases, e.g., from https://lcamtuf.coredump.cx/afl/demo/afl_testcases.tgz $SRC/afl_testcases.tgz and other testcases if specialized testcases exist for a given project\n- Change the working directory to the project name.\n- Copy the build.sh and fuzzers into the docker container at COPY build.sh $SRC/, e.g., 'COPY build.sh $SRC/'.",
         "result_of_step": []
     },
     "8": {
-        "static_header": "Step 8: Build the fuzzers. ",
-        "step_line": "- Use 'linux_terminal' inside the newly created folder to call python3 oss-fuzz/infra/helper.py build_fuzzers --sanitizer address <project_name> inside the OSS-Fuzz directory.",
+        "static_header": "Step 8: Build the image. ",
+        "step_line": "- Use 'build_image' with the name of the target project. Pay close attention if any errors occur and attempt to fix them using read_file and write_file which will always be used outside the container so you can modify the Dockerfile and build.sh with these tools.",
         "result_of_step": []
     },
     "9": {
-        "static_header": "Step 9: Run the fuzzers. ",
-        "step_line": "- Use 'linux_terminal' inside the newly created folder to call python3 oss-fuzz/infra/helper.py run_fuzzer --engine libfuzzer --sanitizer address <project_name>.",
+        "static_header": "Step 9: Build the fuzzers. ",
+        "step_line": "- Use 'build_fuzzers' with the name of the target project. Pay close attention if any errors occur and attempt to fix them using read_file and write_file which will always be used outside the container so you can modify the Dockerfile and build.sh with these tools.",
+        "result_of_step": []
+    },
+    "10": {
+        "static_header": "Step 10: Check if everything went correctly. ",
+        "step_line": "- Use 'check_build' with the name of the target project. Pay close attention if any errors occur and attempt to fix them using read_file and write_file which will always be used outside the container so you can modify the Dockerfile and build.sh with these tools.",
         "result_of_step": []
     }
 }
