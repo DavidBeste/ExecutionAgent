@@ -1,0 +1,346 @@
+# Setting up a New Project
+
+## Prerequisites
+- Integrate one or more fuzz targets with the project you want to fuzz.
+- Install Docker.
+  - If you want to run docker without sudo, create a docker group.
+  - Docker images can consume significant disk space. Run `docker-cleanup` periodically.
+- (Optional) Install `gsutil` for local code coverage testing.
+
+## Creating the File Structure
+Each OSS-Fuzz project has a subdirectory inside the `projects/` directory in the OSS-Fuzz repository.
+
+### Configuration Files
+Each project directory contains:
+- `project.yaml`: Provides metadata about the project.
+- `Dockerfile`: Defines the container environment.
+- `build.sh`: Defines the build script executed inside the Docker container.
+
+### Generate Template Configuration Files
+```sh
+$ cd /path/to/oss-fuzz
+$ export PROJECT_NAME=<project_name>
+$ export LANGUAGE=<project_language>
+$ python infra/helper.py generate $PROJECT_NAME --language=$LANGUAGE
+```
+
+## `project.yaml`
+This file stores project metadata. Supported attributes:
+
+- **homepage**: Project’s homepage.
+- **language**: Programming language (e.g., `c`, `c++`, `go`, `rust`, `python`).
+- **primary_contact, auto_ccs**: Primary contact and auto-CC list.
+- **main_repo**: Path to the source repository.
+- **vendor_ccs** (optional): List of vendor email addresses for bug reports.
+- **sanitizers** (optional): Address (`address`), Memory (`memory`), Undefined Behavior (`undefined`).
+- **architectures** (optional): Default is `x86_64`. Can add `i386`.
+- **fuzzing_engines** (optional): Default includes `libfuzzer`, `afl`, `honggfuzz`, `centipede`.
+- **help_url** (optional): Custom help URL in bug reports.
+- **builds_per_day** (optional): Default is 1, can be up to 4.
+- **file_github_issue** (optional): Mirror issues on GitHub.
+
+## `Dockerfile`
+Defines the Docker image for your project.
+
+Example:
+```dockerfile
+FROM gcr.io/oss-fuzz-base/base-builder
+RUN apt-get update && apt-get install -y ...
+RUN git clone <git_url> <checkout_dir>
+WORKDIR <checkout_dir>
+COPY build.sh fuzzer.cc $SRC/
+```
+where fuzzer.cc must be replaced with the correct name of the fuzzer file
+
+## `build.sh`
+Defines how to build fuzz targets in your project.
+
+Here is a general template followed by some examples. You must check all aspects of the template if they required for your build.sh
+#!/bin/bash -eu
+# Copyright YEAR Google LLC
+#
+# Licensed under the Apache License, Version 2.0
+# https://www.apache.org/licenses/LICENSE-2.0
+#
+################################################################################
+
+# Optional: Language/package manager-specific setup (Python, Java, etc.)
+# Install dependencies, build the project using proper flags (CFLAGS, CXXFLAGS, etc.)
+
+# [Optional] Environment Variables
+# export ENV_VAR=value
+
+# Step 1: Install Project Dependencies (language-specific)
+# Examples:
+# pip3 install .            # For Python
+# $MVN install              # For Java
+# ./configure && make       # For C/C++
+# yarn install              # For JavaScript
+
+# Step 2: Build or Compile the Target Project
+# Examples:
+# cmake $SRC/myproject && make -j$(nproc)
+# bazel build //...
+
+# Step 3: Locate and Compile Fuzzers
+# Examples:
+# For C/C++:
+# for fuzzer in $(find $SRC -name '*_fuzzer.cc'); do
+#   fuzzer_basename=$(basename -s .cc $fuzzer)
+#   $CXX $CXXFLAGS -std=c++11 $fuzzer -o $OUT/$fuzzer_basename $LIB_FUZZING_ENGINE
+# done
+
+# For Python:
+# for fuzzer in $(find $SRC -name 'fuzz_*.py'); do
+#   compile_python_fuzzer $fuzzer
+# done
+
+# For Java:
+# for fuzzer in $(find $SRC -name '*Fuzzer.java'); do
+#   fuzzer_basename=$(basename -s .java $fuzzer)
+#   javac -cp $BUILD_CLASSPATH $fuzzer
+#   cp $SRC/$fuzzer_basename.class $OUT/
+#   echo "#!/bin/bash
+#   this_dir=\$(dirname \"\$0\")
+#   \$this_dir/jazzer_driver \
+#     --cp=\$this_dir:$JAZZER_API_PATH \
+#     --target_class=$fuzzer_basename \
+#     \$@" > $OUT/$fuzzer_basename
+#   chmod u+x $OUT/$fuzzer_basename
+# done
+
+# Step 4: Copy Additional Runtime Resources (if needed)
+# cp $SRC/*.dict $OUT/
+# cp $SRC/*.options $OUT/
+
+Example:
+```sh
+#!/bin/bash -eu
+
+./buildconf.sh
+./configure
+make clean
+make -j$(nproc) all
+
+$CXX $CXXFLAGS -std=c++11 -Ilib/ \
+    $SRC/parse_fuzzer.cc -o $OUT/parse_fuzzer \
+    $LIB_FUZZING_ENGINE .libs/libexpat.a
+
+cp $SRC/*.dict $SRC/*.options $OUT/
+```
+### Disabling Code Instrumentation
+```sh
+CFLAGS_SAVE="$CFLAGS"
+CXXFLAGS_SAVE="$CXXFLAGS"
+unset CFLAGS
+unset CXXFLAGS
+export AFL_NOOPT=1
+
+# Build commands here that should not be instrumented.
+
+export CFLAGS="$CFLAGS_SAVE"
+export CXXFLAGS="$CXXFLAGS_SAVE"
+unset AFL_NOOPT
+```
+
+## Environment Variables
+| Location | Env Variable | Description |
+|----------|-------------|-------------|
+| `/out/`  | `$OUT` | Directory for fuzz targets, dictionaries, etc. |
+| `/src/`  | `$SRC` | Directory for source files. |
+| `/work/` | `$WORK` | Directory for intermediate files. |
+
+## Testing Locally
+```sh
+$ cd /path/to/oss-fuzz
+$ python infra/helper.py build_image $PROJECT_NAME
+$ python infra/helper.py build_fuzzers --sanitizer <address/memory/undefined> $PROJECT_NAME
+$ python infra/helper.py check_build $PROJECT_NAME
+$ python infra/helper.py run_fuzzer --corpus-dir=<path-to-temp-corpus-dir> $PROJECT_NAME <fuzz_target>
+```
+
+## Efficient Fuzzing
+### Seed Corpus
+To provide a corpus for `my_fuzzer`, place `my_fuzzer_seed_corpus.zip` in `$OUT`.
+
+### Dictionaries
+Put your dictionary file in `$OUT`. If named `%fuzz_target%.dict`, it will be used automatically. Otherwise, specify in `.options` file:
+```ini
+[libfuzzer]
+dict = dictionary_name.dict
+```
+
+### Input Size
+```cpp
+if (size < kMinInputLength || size > kMaxInputLength)
+  return 0;
+```
+# Most important part!!!!
+# Finally, one entire workflow example for the library libtiff, apply this as good as possible to given projects
+
+This is the initial Dockerfile:
+
+```FROM gcr.io/oss-fuzz-base/base-builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV SRC=/src
+ENV WORK=/work
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    clang \
+    make \
+    autoconf \
+    automake \
+    libtool \
+    cmake \
+    nasm \
+    git \
+    curl \
+    liblzma-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+
+RUN git clone --depth 1 https://gitlab.com/libtiff/libtiff
+RUN git clone --depth 1 https://github.com/madler/zlib
+RUN git clone --depth 1 https://github.com/libjpeg-turbo/libjpeg-turbo
+RUN git clone https://www.cl.cam.ac.uk/~mgk25/git/jbigkit
+
+COPY build.sh /opt/
+RUN chmod +x /opt/build.sh && /opt/build.sh
+
+ENV PATH="/opt/install/bin:$PATH"
+ENV LD_LIBRARY_PATH="/opt/install/lib:$LD_LIBRARY_PATH"
+ENV C_INCLUDE_PATH="/opt/install/include:$C_INCLUDE_PATH"```
+
+This is the initial build.sh:
+```#!/bin/bash -eu
+
+# Build zlib
+cd /opt/zlib
+./configure --static --prefix=/opt/install
+make -j$(nproc)
+make install
+
+# Build libjpeg-turbo
+cd /opt/libjpeg-turbo
+cmake . -DCMAKE_INSTALL_PREFIX=/opt/install -DENABLE_STATIC=on -DENABLE_SHARED=off
+make -j$(nproc)
+make install
+
+# Build jbigkit
+cd /opt/jbigkit
+make lib
+cp libjbig/*.a /opt/install/lib/
+cp libjbig/*.h /opt/install/include/
+
+# Build libtiff
+cd /opt/libtiff
+cmake . -DCMAKE_INSTALL_PREFIX=/opt/install -DBUILD_SHARED_LIBS=off
+make -j$(nproc)
+make install```
+
+Based on the initial Dockerfile and the build.sh, an interactive docker environment was launched and the following commands were executed manually by the agent:
+
+cd zlib
+./configure --static --prefix="$WORK"
+make -j$(nproc) CFLAGS="$CFLAGS -fPIC"
+make install
+
+cd ../libjpeg-turbo
+cmake . -DCMAKE_INSTALL_PREFIX=$WORK -DENABLE_STATIC=on -DENABLE_SHARED=off
+make -j$(nproc)
+make install
+
+cd ../jbigkit
+make lib
+
+cd ..
+mv jbigkit/libjbig/*.a "$WORK/lib/"
+mv jbigkit/libjbig/*.h "$WORK/include/"
+
+cd libtiff
+cmake . -DCMAKE_INSTALL_PREFIX=$WORK -DBUILD_SHARED_LIBS=off
+make -j$(nproc)
+make install
+
+# Generate the fuzzing harness here before compilation
+
+$CXX $CXXFLAGS -std=c++11 -I$WORK/include         tiff_read_rgba_fuzzer.cc -o $OUT/tiff_read_rgba_fuzzer         -fsanitize=fuzzer $WORK/lib/libtiffxx.a $WORK/lib/libtiff.a $WORK/lib/libz.a $WORK/lib/libjpeg.a         $WORK/lib/libjbig.a $WORK/lib/libjbig85.a -Wl,-Bstatic -llzma -Wl,-Bdynamic
+ls $OUT/tiff_read_rgba_fuzzer
+
+mkdir afl_testcases
+wget https://lcamtuf.coredump.cx/afl/demo/afl_testcases.tgz
+
+tar xf afl_testcases.tgz -C afl_testcases
+mkdir tif
+find afl_testcases -type f -name '*.tif' -exec mv -n {} tif/ \;
+zip -rj tif.zip tif/
+wget https://raw.githubusercontent.com/google/AFL/debe27037b9444bbf090a0ffbd5d24889bb887ae/dictionaries/tiff.dict -P $SRC/
+cp "$SRC/tiff.dict" "$OUT/tiff_read_rgba_fuzzer_seed_corpus.zip"
+
+
+Based on these executed commands, and the realization that the fuzzers were build successfully, the agent create the following two new Dockerfile and build.sh for OSS-Fuzz integration:
+
+OSS-Fuzz-Dockerfile:
+
+```FROM gcr.io/oss-fuzz-base/base-builder
+RUN apt-get update && apt-get install -y make autoconf automake libtool cmake nasm
+RUN git clone --depth 1 https://gitlab.com/libtiff/libtiff
+RUN git clone --depth 1 https://github.com/madler/zlib
+RUN git clone --depth 1 https://github.com/libjpeg-turbo/libjpeg-turbo
+RUN git clone https://www.cl.cam.ac.uk/~mgk25/git/jbigkit
+ADD https://lcamtuf.coredump.cx/afl/demo/afl_testcases.tgz afl_testcases.tgz
+ADD https://raw.githubusercontent.com/google/AFL/debe27037b9444bbf090a0ffbd5d24889bb887ae/dictionaries/tiff.dict tiff.dict
+WORKDIR libtiff
+COPY build.sh $SRC/```
+
+OSS-Fuzz-build.sh:
+```#!/bin/bash -eu
+
+# build zlib
+pushd "$SRC/zlib"
+./configure --static --prefix="$WORK"
+make -j$(nproc) CFLAGS="$CFLAGS -fPIC"
+make install
+popd
+
+# Build libjpeg-turbo
+pushd "$SRC/libjpeg-turbo"
+cmake . -DCMAKE_INSTALL_PREFIX=$WORK -DENABLE_STATIC=on -DENABLE_SHARED=off
+make -j$(nproc)
+make install
+popd
+
+# Build libjbig
+pushd "$SRC/jbigkit"
+if [ "$ARCHITECTURE" = "i386" ]; then
+    echo "#!/bin/bash" > gcc
+    echo "clang -m32 \$*" >> gcc
+    chmod +x gcc
+    PATH=$PWD:$PATH make lib
+else
+    make lib
+fi
+
+mv "$SRC"/jbigkit/libjbig/*.a "$WORK/lib/"
+mv "$SRC"/jbigkit/libjbig/*.h "$WORK/include/"
+popd
+
+cmake . -DCMAKE_INSTALL_PREFIX=$WORK -DBUILD_SHARED_LIBS=off
+make -j$(nproc)
+make install
+
+$CXX $CXXFLAGS -std=c++11 -I$WORK/include \
+    $SRC/libtiff/contrib/oss-fuzz/tiff_read_rgba_fuzzer.cc -o $OUT/tiff_read_rgba_fuzzer \
+    $LIB_FUZZING_ENGINE $WORK/lib/libtiffxx.a $WORK/lib/libtiff.a $WORK/lib/libz.a $WORK/lib/libjpeg.a \
+    $WORK/lib/libjbig.a $WORK/lib/libjbig85.a
+
+mkdir afl_testcases
+(cd afl_testcases; tar xf "$SRC/afl_testcases.tgz")
+mkdir tif
+find afl_testcases -type f -name '*.tif' -exec mv -n {} tif/ \;
+zip -rj tif.zip tif/
+cp tif.zip "$OUT/tiff_read_rgba_fuzzer_seed_corpus.zip"
+cp "$SRC/tiff.dict" "$OUT/tiff_read_rgba_fuzzer.dict"```
