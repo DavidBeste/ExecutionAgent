@@ -1,7 +1,14 @@
 # Tools
-    1. linux_terminal: Execute commands within the current Linux terminal. 'linux_terminal' starts the first time inside the folder of the project (do not include the project name in your paths because you are inside the project folder already).
+    1. linux_terminal: Execute commands within the current Linux terminal. 'linux_terminal' always executes inside the docker environment.
         * Example : {"command": {"name": "linux_terminal", "args": {"command": "ls"}}}
-    2. read_file: Read a file.
-        Example: {"command": {"name": "read_file", "args": {"file_path": "python.py"}}}
-    3. write_to_file: Write text into a file. args: (filename: string, text: string).
+    2. read_file: Read a file. args: (file_path: string, container: string).
+        Example: {"command": {"name": "read_file", "args": {"file_path": "python.py", "container": "False"}}}
+    3. write_to_file: Write text into a file. args: (filename: string, text: string, container: string).
+        Example: {"command": {"name": "write_to_file", "args": {"filename": "python.py", "text": "print('Hello, World!')", "container": "False"}}}
     4. goals_accomplished: Call when all steps are finished, results are reported, and scripts are created. args (reason: string)
+    5. build_image: Call when Dockerfile and build.sh for oss-fuzz have been created args (name: string).
+        Example: {"command": {"name": "build_image", "args": {"name": "project"}}}
+    6. build_fuzzers: Call when build_image successfully completed (name: string).
+        Example: {"command": {"name": "build_fuzzers", "args": {"name": "project"}}}
+    7. check_build: Call when check_build successfully completed (name: string).
+        Example: {"command": {"name": "check_build", "args": {"name": "project"}}}
